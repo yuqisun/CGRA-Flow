@@ -3,7 +3,7 @@
 	url = https://github.com/tancheng/CGRA-Mapper
 [submodule "CGRA-Benchmark"]
 	path = CGRA-Benchmark
-	url = https://github.com/tancheng/CGRA-Benchmark
+	url = https://github.com/coredac/CGRA-Bench
 [submodule "VectorCGRA"]
 	path = VectorCGRA
 	url = https://github.com/tancheng/VectorCGRA.git
