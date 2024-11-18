@@ -11,6 +11,7 @@ from functools import partial
 from tkinter import filedialog as fd
 
 import customtkinter
+from CTkMessagebox import CTkMessagebox
 from PIL import Image, ImageTk, ImageFile
 
 import argparse
@@ -112,8 +113,8 @@ xbarCheckbuttons = {}
 kernelOptions = tkinter.StringVar()
 kernelOptions.set("Not selected yet")
 synthesisRunning = False
-constraintFilePath = ""
-configFilePath = ""
+constraintFilePath = "/WORK_REPO/CGRA-Flow/build/constraint.sdc"
+configFilePath = "/WORK_REPO/CGRA-Flow/build/config.mk"
 
 mapped_tile_color_list = ['#FFF113', '#75D561', '#F2CB67', '#FFAC73', '#F3993A', '#B3FF04', '#C2FFFF']
 
@@ -964,7 +965,9 @@ def clickGenerateVerilog():
     os.chdir("verilog")
 
     # pymtl function that is used to generate synthesizable verilog
-    test_cgra_universal(paramCGRA = paramCGRA)
+    cmdline_opts = {'test_verilog': 'zeros', 'test_yosys_verilog': '', 'dump_textwave': False, 'dump_vcd': False,
+                    'dump_vtb': False, 'max_cycles': None}
+    test_cgra_universal(cmdline_opts, paramCGRA = paramCGRA)
 
     widgets["verilogText"].delete("1.0", tkinter.END)
     found = False
@@ -1005,6 +1008,8 @@ def countSynthesisTime():
 
 def runYosys():
     global synthesisRunning
+    cwd = os.getcwd()
+    print(f'runYosys CWD: {cwd}')
     os.system("make 3")
 
     statsFile = open("3-open-yosys-synthesis/stats.txt", 'r')
@@ -1092,8 +1097,6 @@ def clickSynthesize():
 
         widgets["reportSPMAreaData"].delete(0, tkinter.END)
         widgets["reportSPMAreaData"].insert(0, str(spmArea))
-
-
     else:
         tkinter.messagebox.showerror(title="Sythesis", message="Execution of Cacti failed.")
 
@@ -1204,6 +1207,20 @@ def clickCompileApp():
 
     os.chdir("..")
 
+def clickProcessName(*args):
+    global configFilePath
+    test_platform_name = processOptions.get()
+
+    # Updates process within the config.mk to the user selected one.
+    with open(configFilePath, 'r') as file:
+        # Reads all lines within the file.
+        lines = file.readlines()
+        # Modifies the first line, replaces the PLATFORM with the user selected process technology.
+        lines[0] = "export PLATFORM         = " + test_platform_name + "\n"
+    with open(configFilePath, 'w') as file:
+        # Writes the updated content back to config.mk.
+        file.writelines(lines)
+    print(f'test_platform_name: {test_platform_name}, configFilePath: {configFilePath}')
 
 def clickKernelMenu(*args):
     global paramCGRA
@@ -1288,6 +1305,7 @@ def clickShowDFG():
         "isStaticElasticCGRA": False,
         "ctrlMemConstraint": 200,
         "regConstraint": 12,
+        "incrementalMapping": False
     }
 
     json_object = json.dumps(genDFGJson, indent=4)
@@ -1296,6 +1314,9 @@ def clickShowDFG():
         outfile.write(json_object)
 
     dumpParamCGRA2JSON("paramCGRA.json")
+
+    cwd = os.getcwd()
+    print(f'clickShowDFG CWD: {cwd}')
 
     genDFGCommand = "opt-12 -load ../../CGRA-Mapper/build/src/libmapperPass.so -mapperPass ./kernel.bc"
     print("trying to run opt-12")
@@ -1535,6 +1556,7 @@ def clickMapDFG():
         "isStaticElasticCGRA": False,
         "ctrlMemConstraint": paramCGRA.configMemSize,
         "regConstraint": 12,
+        "incrementalMapping": False
     }
 
     mappingJsonObject = json.dumps(mappingJson, indent=4)
@@ -2125,6 +2147,7 @@ def create_layout_pannel(master):
     constraintLabel = customtkinter.CTkLabel(layoutPannel, text="Constraint.sdc")
     constraintLabel.grid(row=1, column=0, pady=(10,10), sticky="nsew")
     constraintPathEntry = customtkinter.CTkEntry(layoutPannel)
+    constraintPathEntry.insert(0, constraintFilePath)
     constraintPathEntry.grid(row=1, column=1, padx=(10,20), pady=(10,10), sticky="nsew")
     constraintPathEntry.bind("<Button-1>", clickSelectConstraintFile)
     widgets["constraintPathEntry"] = constraintPathEntry
@@ -2133,6 +2156,7 @@ def create_layout_pannel(master):
     configLabel = customtkinter.CTkLabel(layoutPannel, text="Config.mk")
     configLabel.grid(row=1, column=2, padx=(0,10), pady=(10,10), sticky="nsew")
     configPathEntry = customtkinter.CTkEntry(layoutPannel)
+    configPathEntry.insert(0, configFilePath)
     configPathEntry.grid(row=1, column=3, pady=(10,10), sticky="nsew")
     configPathEntry.bind("<Button-1>", clickSelectConfigFile)
     widgets["configPathEntry"] = configPathEntry
@@ -2142,6 +2166,7 @@ def create_layout_pannel(master):
     processNameLabel.grid(row=2, column=0, pady=(10,10), sticky="nsew")
     tempOptions = [ "asap7", "nangate45", "sky130hd"]
     processNameMenu = customtkinter.CTkOptionMenu(layoutPannel, variable=processOptions, values=tempOptions)
+    processOptions.trace("w", clickProcessName)
     processNameMenu.grid(row=2, column=1, padx=(10,20), pady=(10,10), sticky="nsew")
 
     # Adds the button to trigger RTL->Layout flow.
@@ -2200,15 +2225,15 @@ def constructDependencyFiles(cgraflow_basepath, standard_module_name, test_platf
     subprocess.run(["cp " + constraintFilePath + " " + mk_sdc_file_path], shell=True, encoding="utf-8")
     subprocess.run(["cp " + configFilePath + " " + mk_sdc_file_path], shell=True, encoding="utf-8")
 
-    # Updates process within the config.mk to the user selected one.
-    with open(mk_sdc_file_path + "config.mk", 'r') as file:
-        # Reads all lines within the file.
-        lines = file.readlines()
-        # Modifies the first line, replaces the PLATFORM with the user selected process technology.
-        lines[0] = "export PLATFORM         = " + test_platform_name + "\n"
-    with open(mk_sdc_file_path + "config.mk", 'w') as file:
-        # Writes the updated content back to config.mk.
-        file.writelines(lines)
+    # # Updates process within the config.mk to the user selected one.
+    # with open(mk_sdc_file_path + "config.mk", 'r') as file:
+    #     # Reads all lines within the file.
+    #     lines = file.readlines()
+    #     # Modifies the first line, replaces the PLATFORM with the user selected process technology.
+    #     lines[0] = "export PLATFORM         = " + test_platform_name + "\n"
+    # with open(mk_sdc_file_path + "config.mk", 'w') as file:
+    #     # Writes the updated content back to config.mk.
+    #     file.writelines(lines)
 
 def runOpenRoad(mk_sdc_file_path, cmd_path, odb_path, layout_path):
     # Runs the test module from RTL to GDSII.
@@ -2269,6 +2294,19 @@ def clickSelectConfigFile(event):
     configFilePath = fd.askopenfilename(title="Chooses config.mk for OpenRoad.", initialdir="./", filetypes=(("MK file", "*.mk"),))
     widgets["configPathEntry"].delete(0, tkinter.END)
     widgets["configPathEntry"].insert(0, configFilePath)
+
+    # Read platform from mk file
+    configFile = open(configFilePath, 'r')
+    platform_line = configFile.readline()
+    platformName = platform_line.replace("export PLATFORM", "").replace("=", "").strip()
+    print(f"Platform name is {platformName}")
+    if platformName not in ["asap7", "nangate45", "sky130hd"]:
+        # tkinter.messagebox.showerror(title="Not supported platform", message=f"Platform {platformName} is not supported.")
+        CTkMessagebox(title="Not supported platform!", message=f"Platform {platformName} is not supported.",
+                            icon="warning", sound=True)
+    else:
+        processOptions.set(platformName)
+    configFile.close()
     print(configFilePath)
 
 def display_layout_image(image_path):
