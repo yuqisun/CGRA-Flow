@@ -12,13 +12,13 @@
 	url = https://github.com/coredac/mlir-cgra
 [submodule "tools/mflowgen"]
 	path = tools/mflowgen
-	url = https://github.com/tancheng/mflowgen.git
+	url = https://github.com/coredac/mflowgen
 [submodule "tools/sv2v"]
 	path = tools/sv2v
 	url = https://github.com/zachjs/sv2v.git
 [submodule "tools/cacti"]
 	path = tools/cacti
-	url = https://github.com/tancheng/cacti.git
+	url = https://github.com/coredac/cacti
 [submodule "tools/OpenROAD-flow-scripts"]
 	path = tools/OpenROAD-flow-scripts
 	url = https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts.git
