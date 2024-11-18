@@ -6,7 +6,7 @@
 	url = https://github.com/coredac/CGRA-Bench
 [submodule "VectorCGRA"]
 	path = VectorCGRA
-	url = https://github.com/tancheng/VectorCGRA.git
+	url = https://github.com/coredac/VectorCGRA
 [submodule "mlir-cgra"]
 	path = mlir-cgra
 	url = https://github.com/tancheng/mlir-cgra.git
