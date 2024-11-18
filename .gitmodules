@@ -1,6 +1,6 @@
 [submodule "CGRA-Mapper"]
 	path = CGRA-Mapper
-	url = https://github.com/tancheng/CGRA-Mapper
+	url = https://github.com/coredac/CGRA-Mapper
 [submodule "CGRA-Benchmark"]
 	path = CGRA-Benchmark
 	url = https://github.com/coredac/CGRA-Bench
