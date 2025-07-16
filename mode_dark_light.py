@@ -32,6 +32,7 @@ if args.theme:
        CANVAS_LINE_COLOR = "black"
 
 from VectorCGRA.cgra.translate.CGRATemplateRTL_test import *
+#from VectorCGRA.cgra.translate.CGRARTL_test import *
 
 # importing module
 import logging
@@ -953,6 +954,46 @@ def clickTest():
 
     os.chdir("..")
 
+def export_paramCGRA_to_json(paramCGRA, filename="cgra-architecture.json"):
+    default_kernel = "aggregate"
+    default_domain = "gcn"
+    default_optimization_goal = "area"
+    default_speedup = 3.0
+    default_tile_array = f"{getattr(paramCGRA, 'rows', 3)}x{getattr(paramCGRA, 'columns', 3)}"
+    default_interconnect = "mesh"
+    default_data_spm_kb = getattr(paramCGRA, "dataMemSize", 64)
+    default_config_mem_kb = getattr(paramCGRA, "configMemSize", 8)
+    
+
+    tiles = []
+    fu_set = set()
+    for tile in paramCGRA.tiles:
+        fus = [fu for fu, v in getattr(tile, "fuDict", {}).items() if v == 1]
+        fu_set.update(fus)
+        tiles.append({
+            "id": getattr(tile, "ID", 0),
+            "x": getattr(tile, "dimX", 0),
+            "y": getattr(tile, "dimY", 0),
+            "functional_units": fus
+        })
+
+    cgra_json = {
+        "kernel": getattr(paramCGRA, "targetAppName", default_kernel),
+        "domain": default_domain,
+        "optimization_goal": default_optimization_goal,
+        "speedup": widgets["mapSpeedupEntry"].get() or default_speedup,
+        "architecture": {
+            "tile_array": default_tile_array,
+            "interconnect": getattr(paramCGRA, "interconnect", default_interconnect),
+            "data_spm_kb": default_data_spm_kb,
+            "config_mem_kb": default_config_mem_kb,
+            "functional_units": sorted(list(fu_set)),
+            "tiles": tiles
+        }
+    }
+
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(cgra_json, f, indent=2, ensure_ascii=False)
 
 def clickGenerateVerilog():
     message = paramCGRA.getErrorMessage()
@@ -963,10 +1004,11 @@ def clickGenerateVerilog():
     os.system("mkdir verilog")
     os.chdir("verilog")
 
+    export_paramCGRA_to_json(paramCGRA, "cgra-architecture.json")
+
     # pymtl function that is used to generate synthesizable verilog
-    cmdline_opts = {'test_verilog': 'zeros', 'test_yosys_verilog': '', 'dump_textwave': False, 'dump_vcd': False,
-                    'dump_vtb': False, 'max_cycles': None}
-    test_cgra_universal(paramCGRA = paramCGRA)
+    test_cgra_universal(paramCGRA)
+    #test_cgra_universal()
 
     widgets["verilogText"].delete("1.0", tkinter.END)
     found = False
@@ -985,6 +1027,7 @@ def clickGenerateVerilog():
         widgets["verilogText"].insert(tkinter.END, "Error exists during Verilog generation")
 
     os.system("mv CGRATemplateRTL__*.v design.v")
+    #os.system("mv CGRARTL__*.v design.v")
     # os.system("rename s/\.v/\.log/g *")
 
     os.chdir("..")
@@ -1501,7 +1544,7 @@ def clickTerminateMapping():
 def clickMapDFG():
     global mappingProc
     mappingProc = None
-    heuristic = mappingAlgoCheckVar.get() == 0
+    heuristic = mappingAlgoCheckVar.get() == 1
 
     os.system("mkdir kernel")
     os.chdir("kernel")
@@ -1577,6 +1620,7 @@ def create_cgra_pannel(master, rows, columns):
     # Use solid black board to let the pannel look better
     cgraPannel = customtkinter.CTkFrame(master)
     # cgraPannel = tkinter.LabelFrame(master, text='CGRA', bd=BORDER, relief='groove')
+    cgraPannel.grid(row=0, column=0, rowspan=1, columnspan=1, padx=(5, 5), pady=(5, 0), sticky="nsew")
     # cgraPannel.pack()
     # cgraPannel.grid_propagate(0)
     # create label for cgraPannel
@@ -1713,7 +1757,6 @@ def create_cgra_pannel(master, rows, columns):
     hbar = customtkinter.CTkScrollbar(cgraPannel, orientation="horizontal", command=canvas.xview)
     hbar.pack(side="bottom", fill="x")
     canvas.config(xscrollcommand=hbar.set)
-    return cgraPannel
 
 
 def place_fu_options(master):
@@ -1776,6 +1819,7 @@ def place_xbar_options(master):
 def create_param_pannel(master):
     # paramPannel = tkinter.LabelFrame(master, text='Configuration', bd=BORDER, relief='groove')
     paramPannel = customtkinter.CTkFrame(master, width=550, height=480)
+    paramPannel.grid(row=0, column=1, rowspan=1, columnspan=1, padx=(0, 5), sticky="nsew")
 
     # Use columnconfigure and rowconfigure to partition the columns, so that each column and row will fill the corresponding space
     # The 'weight' represents the weight of the corresponding row/column length
@@ -1991,11 +2035,11 @@ def create_param_pannel(master):
     # for port in paramCGRA.dataSPM.outLinks:
     #     if not paramCGRA.dataSPM.outLinks[port].disabled:
     #         spmEnabledListbox.insert(0, port)
-    return paramPannel
 
 
 def create_test_pannel(master):
     dataPannel = customtkinter.CTkFrame(master, width=280, height=480)
+    dataPannel.grid(row=0, column=2, rowspan=1, columnspan=1, pady=(5,0), sticky="nsew")
     # Increase the size of the 'SVerilog' panel
     dataPannel.grid_rowconfigure(1, weight=2)
 
@@ -2112,11 +2156,11 @@ def create_test_pannel(master):
     reportSPMAreaData.grid(row=5, column=1, pady=5)
     reportSPMPowerLabel.grid(row=6, column=0, pady=5)
     reportSPMPowerData.grid(row=6, column=1, pady=5)
-    return dataPannel;
 
 def create_layout_pannel(master):
     # layoutPannel = tkinter.LabelFrame(master, text='Layout', bd=BORDER, relief='groove')
     layoutPannel = customtkinter.CTkFrame(master)
+    layoutPannel.grid(row=0, column=3, rowspan=1, columnspan=1, padx=(5,0), pady=(5,0), sticky="nsew")
     layoutPannelLabel = customtkinter.CTkLabel(layoutPannel, text='Layout ',
                                                # width=100,
                                                font=customtkinter.CTkFont(size=FRAME_LABEL_FONT_SIZE, weight="bold"))
@@ -2153,7 +2197,6 @@ def create_layout_pannel(master):
     global layoutLabel
     layoutLabel = customtkinter.CTkLabel(layoutPannel, text='')
     layoutLabel.grid(row=3, column=0, padx=(0,10), pady=(10,10), columnspan=4)
-    return layoutPannel
 
 """
     canvas = customtkinter.CTkCanvas(layoutPannel, bg=CANVAS_BG_COLOR, bd=0, highlightthickness=0)
@@ -2167,7 +2210,6 @@ def create_layout_pannel(master):
     CreateToolTip(showButton, text="The layout demonstration is\nunder development.")
     showButton.place(relx=0.5, rely=0.1, anchor="center")
 """
-
 
 def constructDependencyFiles(cgraflow_basepath, standard_module_name, test_platform_name, verilog_srcfile_path, mk_sdc_file_path, orfs_basePath):
     # Finds the target RTL design and transforms the format.
@@ -2235,7 +2277,7 @@ def clickRTL2Layout():
     test_platform_name = processOptions.get()
     print("Test platform is %s" % (test_platform_name))
     orfs_basePath = cgraflow_basepath + "/tools/OpenROAD-flow-scripts/flow/"
-    layout_path = cgraflow_basepath + "/build/" + "layout.png"
+    layout_path = orfs_basePath + "layout.png"
     odb_path = orfs_basePath + "results/" + test_platform_name + "/" + standard_module_name + "/base/6_final.odb"
     cmd_path = orfs_basePath + "cmd.tcl"
     verilog_srcfile_path = "designs/src/" + standard_module_name + "/"
@@ -2283,6 +2325,7 @@ def display_layout_image(image_path):
 def create_mapping_pannel(master):
     # mappingPannel = tkinter.LabelFrame(master, text='Mapping', bd=BORDER, relief='groove')
     mappingPannel = customtkinter.CTkFrame(master)
+    mappingPannel.grid(row=1, column=1, rowspan=1, columnspan=3, pady=(5, 0), sticky="nsew")
     mappingPannelLabel = customtkinter.CTkLabel(mappingPannel, text='Mapping ',
                                                # width=100,
                                                font=customtkinter.CTkFont(size=FRAME_LABEL_FONT_SIZE,
@@ -2297,12 +2340,12 @@ def create_mapping_pannel(master):
     vbar.pack(side=tkinter.RIGHT, fill="y")
     mappingCanvas.config(yscrollcommand=vbar.set)
     mappingCanvas.pack(side="top", fill="both", expand=True)
-    return mappingPannel
 
 
 def create_kernel_pannel(master):
     # kernelPannel = tkinter.LabelFrame(master, text="Kernel", bd=BORDER, relief='groove')
     kernelPannel = customtkinter.CTkFrame(master)
+    kernelPannel.grid(row=1, column=0, rowspan=1, columnspan=1, padx=(0, 5), pady=(5, 0), sticky="nsew")
     for row in range(13):
         kernelPannel.grid_rowconfigure(row, weight=1)
     kernelPannel.grid_columnconfigure(0, weight=3)
@@ -2383,12 +2426,12 @@ def create_kernel_pannel(master):
                                             font=customtkinter.CTkFont(size=FRAME_LABEL_FONT_SIZE,
                                                                        weight="bold"))
     mappingOptionLabel.grid(row=0, column=0, columnspan=2)
-    heuristicRadioButton = customtkinter.CTkRadioButton(mappingAlgoPannel, text="Heuristic", variable=mappingAlgoCheckVar, value=0)
-    widgets["heuristicRadioButton"] = heuristicRadioButton
-    heuristicRadioButton.grid(row=1, column=0, pady=(0, 5), sticky="nsew")
-    exhaustiveRadioButton = customtkinter.CTkRadioButton(mappingAlgoPannel, text="Exhaustive", variable=mappingAlgoCheckVar, value=1)
-    widgets["exhaustiveRadioButton"] = exhaustiveRadioButton
-    exhaustiveRadioButton.grid(row=1, column=1, pady=(0, 5), sticky="nsew")
+    heuristicRatiobutton = customtkinter.CTkRadioButton(mappingAlgoPannel, text="Heuristic", variable=mappingAlgoCheckVar, value=0)
+    widgets["heuristicRatiobutton"] = heuristicRatiobutton
+    heuristicRatiobutton.grid(row=1, column=0, pady=(0, 5), sticky="nsew")
+    exhaustiveRatiobutton = customtkinter.CTkRadioButton(mappingAlgoPannel, text="Exhaustive", variable=mappingAlgoCheckVar, value=1)
+    widgets["exhaustiveRatiobutton"] = exhaustiveRatiobutton
+    exhaustiveRatiobutton.grid(row=1, column=1, pady=(0, 5), sticky="nsew")
 
     mapDFGButton = customtkinter.CTkButton(kernelPannel, text="Map DFG", command=clickMapDFG,)
     mapDFGButton.grid(row=8, column=2, columnspan=2, sticky="new")
@@ -2416,54 +2459,6 @@ def create_kernel_pannel(master):
     widgets["mapSpeedupEntry"] = mapSpeedupEntry
     mapSpeedupEntry.insert(0, "0")
     mapSpeedupEntry.grid(row=12, column=3)
-    return kernelPannel
-
-# Performs a perodical checks on whether the UI components are drawn into the screen or not.
-def check_ui_ready(
-    master: customtkinter.CTk,
-    kernel_panel: customtkinter.CTkFrame,
-    mapping_panel: customtkinter.CTkFrame,
-    cgra_panel: customtkinter.CTkFrame,
-    param_panel: customtkinter.CTkFrame,
-    data_panel: customtkinter.CTkFrame,
-    layout_panel: customtkinter.CTkFrame,
-    window: customtkinter.CTkToplevel,
-):
-    panels = [
-        kernel_panel,
-        mapping_panel,
-        cgra_panel,
-        param_panel,
-        data_panel,
-        layout_panel,
-    ]
-
-    if all(panel.winfo_ismapped() for panel in panels):
-        master.after(100, window.destroy)
-    else:
-        master.after(200, lambda: check_ui_ready(master, *panels, window))
-
-# Display all the UI components by calling grid() and start a periodical checks on when they are ready.
-def show_all_ui(master: customtkinter.CTk, window: customtkinter.CTkToplevel):
-    kernelPannel = create_kernel_pannel(master)
-    mappingPannel = create_mapping_pannel(master)
-    cgraPannel = create_cgra_pannel(master, ROWS, COLS)
-    paramPannel = create_param_pannel(master)
-    dataPannel = create_test_pannel(master)
-    layoutPannel = create_layout_pannel(master)
-    kernelPannel.grid(row=1, column=0, rowspan=1, columnspan=1, padx=(0, 5), pady=(5, 0), sticky="nsew")
-    mappingPannel.grid(row=1, column=1, rowspan=1, columnspan=3, pady=(5, 0), sticky="nsew")
-    cgraPannel.grid(row=0, column=0, rowspan=1, columnspan=1, padx=(5, 5), pady=(5, 0), sticky="nsew")
-    paramPannel.grid(row=0, column=1, rowspan=1, columnspan=1, padx=(0, 5), sticky="nsew")
-    dataPannel.grid(row=0, column=2, rowspan=1, columnspan=1, pady=(5,0), sticky="nsew")
-    layoutPannel.grid(row=0, column=3, rowspan=1, columnspan=1, padx=(5,0), pady=(5,0), sticky="nsew")
-    # Once kernel is drawn stop the check loop after 100ms.
-    if (kernelPannel.winfo_ismapped()):
-        master.after(100, window.destroy())
-    # Keeps checking if UI components are drawn in every 2 seconds.
-    else:
-        master.after(2000, lambda:check_ui_ready(master, kernelPannel,mappingPannel, cgraPannel, paramPannel,  dataPannel, layoutPannel, window))
-
 
 
 # paramPadPosX = GRID_WIDTH + MEM_WIDTH + LINK_LENGTH + INTERVAL * 3
@@ -2478,29 +2473,12 @@ TILE_WIDTH = 70
 LINK_LENGTH = 40
 GRID_WIDTH = (TILE_WIDTH + LINK_LENGTH) * COLS - LINK_LENGTH
 GRID_HEIGHT = (TILE_HEIGHT + LINK_LENGTH) * ROWS - LINK_LENGTH
-
-# Sets size first to avoid window keep resizing during loading.
-w, h = master.winfo_screenwidth(), master.winfo_screenheight()
-master.geometry("%dx%d" % (w-10, h-70))
-master.geometry("+%d+%d" % (0, 0))
-
-main_frame = customtkinter.CTkFrame(master)
-
-overlay = customtkinter.CTkToplevel(master)  
-overlay.geometry("%dx%d" % (w-10, h-70))
-overlay.transient(master)  
-overlay.grab_set()  
-
-loading_label = customtkinter.CTkLabel(overlay, text="Loading...", font=("Arial", 24, "bold"))
-loading_label.place(relx=0.5, rely=0.4, anchor="center")
-
-progress = customtkinter.CTkProgressBar(overlay)
-progress.place(relx=0.5, rely=0.5, anchor="center")
-progress.start()
-
-# Adds other UI components in a separate thread.
-threading.Thread(target=show_all_ui(master, overlay), daemon=True).start()
-
+create_kernel_pannel(master)
+create_mapping_pannel(master)
+create_cgra_pannel(master, ROWS, COLS)
+create_param_pannel(master)
+create_test_pannel(master)
+create_layout_pannel(master)
 # The width and height of the entire window
 default_width = 1650
 default_height = 1000
@@ -2513,6 +2491,7 @@ master.grid_columnconfigure(2, weight=1)
 master.grid_columnconfigure(3, weight=1)
 # print(master.winfo_width())
 # print(master.winfo_height())
+w, h = master.winfo_screenwidth(), master.winfo_screenheight()
 master.geometry("%dx%d" % (w-10, h-70))
 master.geometry("+%d+%d" % (0, 0))
 master.mainloop()
